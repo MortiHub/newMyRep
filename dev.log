@@ -20,3 +20,17 @@
 9:09:18 AM [vite] page reload src/systems/YandexSDK.ts
 9:09:24 AM [vite] page reload src/systems/YandexSDK.ts
 9:09:31 AM [vite] page reload index.html
+10:07:17 AM [vite] page reload src/scenes/BootScene.ts
+10:07:44 AM [vite] page reload src/scenes/GameScene.ts
+10:07:48 AM [vite] page reload src/scenes/GameScene.ts
+10:07:51 AM [vite] changed tsconfig file detected: /workspace/tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+10:08:51 AM [vite] page reload src/scenes/BootScene.ts
+10:08:56 AM [vite] page reload src/scenes/BootScene.ts
+10:08:56 AM [vite] page reload src/systems/InputManager.ts
+10:08:56 AM [vite] page reload src/scenes/UIScene.ts
+10:09:08 AM [vite] page reload src/scenes/GameScene.ts
+10:09:08 AM [vite] page reload src/scenes/UIScene.ts
+10:09:08 AM [vite] page reload src/scenes/MainMenuScene.ts
+10:09:20 AM [vite] page reload src/scenes/GameScene.ts
+10:09:20 AM [vite] page reload src/systems/InputManager.ts
+10:09:33 AM [vite] page reload src/scenes/GameScene.ts

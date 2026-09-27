@@ -94,14 +94,16 @@ export class UIScene extends Phaser.Scene {
     this.events.on('ui:death', this.openDeath, this);
 
     this.scale.on('resize', this.onResize, this);
-    this.scene.getScenes(true).forEach((s) => {
-      if (s.scene.key === 'Game') this.gameScene = s;
-    });
+    (this.game.scene as unknown as { getActiveScenes(): Phaser.Scene[] })
+      .getActiveScenes()
+      .forEach((s: Phaser.Scene) => {
+        if (s.scene.key === 'Game') this.gameScene = s;
+      });
   }
 
   private getGame(): Phaser.Scene | null {
     if (!this.gameScene || !this.gameScene.scene.isActive()) {
-      this.gameScene = this.scene.getScene('Game');
+      this.gameScene = this.game.scene.getScene('Game');
     }
     return this.gameScene && this.gameScene.scene.isActive() ? this.gameScene : null;
   }
@@ -349,10 +351,10 @@ export class UIScene extends Phaser.Scene {
 
     const icon = this.add.image(-w / 2 + 34, -h / 2 + 34, sk.icon).setScale(0.85);
     const name = this.mkText(-w / 2 + 66, -h / 2 + 22, t(sk.nameKey), 16, '#ffffff');
-    name.setWordWrap(w - 76);
+    name.setWordWrapWidth(w - 76);
     const elemLabel = this.mkText(-w / 2 + 66, -h / 2 + 42, t(`elem_${sk.element}`), 11, '#' + elemColor.toString(16).padStart(6, '0'));
     const desc = this.mkText(-w / 2 + 14, -h / 2 + 64, t(sk.descKey), 13, '#9fb8e8');
-    desc.setWordWrap(w - 28);
+    desc.setWordWrapWidth(w - 28);
 
     cont.add([bg, icon, name, elemLabel, desc]);
 
@@ -413,7 +415,7 @@ export class UIScene extends Phaser.Scene {
         })
         .filter(Boolean);
       const wrap = this.mkText(W / 2, y, names.join(' • '), 13, '#9fb8e8').setOrigin(0.5, 0);
-      wrap.setWordWrap(W - 60);
+      wrap.setWordWrapWidth(W - 60);
       layer.add(wrap);
       y += 46;
     }
@@ -500,7 +502,7 @@ export class UIScene extends Phaser.Scene {
     this.scene.start('MainMenu');
   }
 
-  override shutdown(): void {
+  shutdown(): void {
     this.events.off('hud:state', this.onHudState, this);
     this.events.off('hud:wave', this.onWave, this);
     this.events.off('ui:levelup', this.openLevelUp, this);

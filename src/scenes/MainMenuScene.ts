@@ -164,8 +164,8 @@ export class MainMenuScene extends Phaser.Scene {
     const cont = this.add.container(x, y).setDepth(10);
     const body = this.add
       .graphics()
+      .fillStyle(color)
       .fillRoundedRect(-width / 2, -height / 2, width, height, 14);
-    body.setTint(color);
     const border = this.add
       .graphics()
       .lineStyle(2, 0xaef3ff, 0.8)

@@ -17,7 +17,9 @@ import {
 } from '../data/SkillsData';
 
 /** Расширяем встроенные типы игровыми полями (без any). */
-interface EnemySprite extends Phaser.GameObjects.Image {
+interface EnemySprite extends Phaser.Physics.Arcade.Sprite {
+  enable(x?: number, y?: number, visible?: boolean, recreateBody?: boolean): this;
+  disable(): this;
   hp: number;
   maxHp: number;
   type: EnemyType;
@@ -28,7 +30,9 @@ interface EnemySprite extends Phaser.GameObjects.Image {
   burnUntil: number;
   burnDps: number;
 }
-interface Projectile extends Phaser.GameObjects.Image {
+interface Projectile extends Phaser.Physics.Arcade.Sprite {
+  enable(x?: number, y?: number, visible?: boolean, recreateBody?: boolean): this;
+  disable(): this;
   kindId: string; // id оружия-владельца
   damage: number;
   life: number;
@@ -37,7 +41,9 @@ interface Projectile extends Phaser.GameObjects.Image {
   aoeRadius: number;
   homing: boolean;
 }
-interface OrbSprite extends Phaser.GameObjects.Image {
+interface OrbSprite extends Phaser.Physics.Arcade.Sprite {
+  enable(x?: number, y?: number, visible?: boolean, recreateBody?: boolean): this;
+  disable(): this;
   value: number;
   pulled: boolean;
 }
@@ -144,7 +150,6 @@ export class GameScene extends Phaser.Scene {
         frequency: 260,
         tint: [0x1e6bff, 0xff8a1e],
         blendMode: 'ADD',
-        followCamera: true,
       });
       dust.setDepth(5);
     } catch {
@@ -427,7 +432,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Поиск свободного (неактивного) объекта в пуле группы. */
-  private findDead<T extends Phaser.GameObjects.Sprite>(group: Phaser.Physics.Arcade.Group): T | null {
+  private findDead<T extends Phaser.Physics.Arcade.Sprite>(group: Phaser.Physics.Arcade.Group): T | null {
     const children = group.getChildren() as unknown as T[];
     for (let i = 0; i < children.length; i++) {
       if (!children[i].active) return children[i];
@@ -926,7 +931,7 @@ export class GameScene extends Phaser.Scene {
 
   private flashScreen(color: number, ms: number): void {
     const cam = this.cameras.main;
-    cam.flash(ms, ((color >> 16) & 0xff), ((color >> 8) & 0xff), (color & 0xff), 0.25);
+    cam.flash(ms, ((color >> 16) & 0xff), ((color >> 8) & 0xff), (color & 0xff));
   }
 
   // ==================== НАВЫКИ ====================
@@ -1063,7 +1068,7 @@ export class GameScene extends Phaser.Scene {
     this.scale.off('resize', this.onResizeHandler);
   }
 
-  override shutdown(): void {
+  shutdown(): void {
     this.shutdownCleanup();
   }
 }

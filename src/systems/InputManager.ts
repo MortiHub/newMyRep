@@ -16,8 +16,8 @@ export class InputManager {
   private readonly radius = 70;
   private graphics: Phaser.GameObjects.Graphics;
   private keyboardCursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private keyboardWasD: Phaser.Input.Keyboard.KeyConnection;
-  private keyboardCursorKeys: Phaser.Input.Keyboard.KeyConnection[] = [];
+  private keyboardWasD!: Phaser.Input.Keyboard.Key;
+  private keyboardCursorKeys: Phaser.Input.Keyboard.Key[] = [];
   private destroyed = false;
 
   constructor(scene: Phaser.Scene) {
