@@ -1,0 +1,20 @@
+{
+  "name": "chakra-survivor",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Chakra Survivor — anime ninja horde survival (Vampire Survivors-like) for Yandex Games",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vite": "^5.2.10",
+    "vite-plugin-singlefile": "^2.0.2"
+  }
+}
