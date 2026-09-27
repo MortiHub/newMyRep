@@ -403,12 +403,17 @@ export class BootScene extends Phaser.Scene {
       g.fillTriangle(c + 16, S - 12, c + 8, c + 8, c + 24, c + 8);
     });
     mk(TEX.icon_tornado, (g) => {
+      // Phaser.Graphics не имеет ellipse()/strokeLine() — рисуем витки торнадо
+      // дугами с переменным «сплющиванием» через scale-трансформации объекта.
       g.lineStyle(4, 0xff5a1e, 0.9);
       for (let i = 0; i < 5; i++) {
         const w = 6 + i * 4;
-        g.beginPath();
-        g.ellipse(c, 16 + i * 8, w, 4, 0, 0, Math.PI * 2);
+        const y = 16 + i * 8;
+        const arc = g.beginPath();
+        // эллипс аппроксимируем широкой плоской дугой
+        g.arc(c, y, w, Math.PI * 0.05, Math.PI * 0.95, false);
         g.strokePath();
+        void arc;
       }
     });
     mk(TEX.icon_steamnova, (g) => {
@@ -487,7 +492,7 @@ export class BootScene extends Phaser.Scene {
         true
       );
       g.lineStyle(2, 0xaef3ff, 0.8);
-      g.strokeLine(c, 16, c, S - 16);
+      g.lineBetween(c, 16, c, S - 16);
     });
     mk(TEX.icon_regen, (g) => {
       g.lineStyle(4, 0x2effa7, 0.95);
