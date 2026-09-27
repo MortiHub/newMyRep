@@ -65,17 +65,36 @@ export class BootScene extends Phaser.Scene {
     });
   }
 
-  async create(): Promise<void> {
-    // 1) SDK — строго до старта игры
-    await YandexSDK.init();
-    setLanguage(YandexSDK.lang);
-    this.progressLabel.setText(t('loading'));
+  /**
+   * Создание чистого HTMLCanvasElement.
+   * ВАЖНО: не используем this.make.canvas — фабрика «canvas» зарегистрирована
+   * только в режиме CANVAS/WebGL-canvas-текстур и в некоторых сборках Phaser
+   * отсутствует, что роняло загрузку (this.make.canvas is not a function).
+   */
+  private makeCanvas(key: string, w: number, h: number): HTMLCanvasElement {
+    if (this.textures.exists(key)) this.textures.remove(key);
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    return c;
+  }
 
-    // 2) Процедурные текстуры (разбито на части для читаемости)
+  async create(): Promise<void> {
+    // 1) Процедурные текстуры генерируем СРАЗУ — загрузка игры не зависит
+    //    от сети/SDK (на случай долгой инициализации Яндекса).
     this.buildBasicTextures(); // Часть 1
     this.buildCharacterTextures(); // Часть 2
     this.buildProjectileTextures(); // Часть 3
     this.buildIconTextures(); // Часть 4
+
+    // 2) SDK — строго до входа в меню (с внутренним таймаутом).
+    try {
+      await YandexSDK.init();
+    } catch (e) {
+      console.warn('[Boot] SDK init failed, continuing offline:', e);
+    }
+    setLanguage(YandexSDK.lang);
+    if (this.progressLabel) this.progressLabel.setText(t('loading'));
 
     // 3) В меню
     this.time.delayedCall(120, () => {
@@ -93,7 +112,7 @@ export class BootScene extends Phaser.Scene {
     pg.destroy();
 
     // Мягкое свечение 64x64 через CanvasGradient
-    const c = this.make.canvas({ key: '__glow_tmp', width: 64, height: 64 });
+    const c = this.makeCanvas('__glow_tmp', 64, 64);
     const ctx = c.getContext('2d')!;
     const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 32);
     grad.addColorStop(0, 'rgba(255,255,255,0.9)');
@@ -105,7 +124,7 @@ export class BootScene extends Phaser.Scene {
     // удалим временный key из менеджера нельзя (addCanvas забрал canvas), ок.
 
     // Тайл «неоновой сетки» пола 128x128
-    const tc = this.make.canvas({ key: '__tiles_tmp', width: 128, height: 128 });
+    const tc = this.makeCanvas('tile_grid', 128, 128);
     const tctx = tc.getContext('2d')!;
     tctx.fillStyle = '#070a16';
     tctx.fillRect(0, 0, 128, 128);

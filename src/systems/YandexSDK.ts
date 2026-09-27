@@ -72,6 +72,33 @@ export type FocusListener = (hasFocus: boolean) => void;
 const SAVE_KEY = 'chakra_survivor_save';
 const LEADERBOARD_ID = 'survival_time';
 
+/**
+ * ============================================================
+ * ГЛУБАЯ ЗАГЛУШКА (MOCK) ДЛЯ ЛОКАЛЬНОЙ РАЗРАБОТКИ.
+ * true  — реальный Яндекс SDK НЕ инициализируется вообще
+ *         (никаких «No parent to post message» в консоли).
+ *         Реклама мгновенно «просмотрена», сейвы в localStorage,
+ *         лидерборд — локальный топ-10 в localStorage.
+ * false — настоящий SDK (для загрузки на Яндекс Игры).
+ * Авто: если страница открыта внутри iframe Яндекс Игр
+ * (top !== window или *.yandex.ru/reframe.html), всегда используется
+ * реальный SDK, независимо от значения флага.
+ * ============================================================
+ */
+export const FORCE_MOCK = true;
+
+function inYandexContainer(): boolean {
+  try {
+    if (window.top !== window.self) return true;
+    return /yandex\.(ru|com)/.test(location.ancestorOrigins?.[0] ?? '') ||
+      /game\.yandex|yandex\.[a-z]+\/games/.test(document.referrer);
+  } catch {
+    return true; // кросс-доменный iframe — скорее всего контейнер Яндекса
+  }
+}
+
+const USE_MOCK = FORCE_MOCK && !inYandexContainer();
+
 /** Данные, сохраняемые в облако игрока. */
 export interface SaveData {
   bestTime: number; // рекорд выживания, сек
@@ -95,14 +122,20 @@ class YandexSDKBridge {
   private rewardedBusy = false;
   private save: SaveData = { ...DEFAULT_SAVE };
   private focusListeners: Set<FocusListener> = new Set();
+  private mockLang = 'ru';
 
   /** true, если игра запущена внутри контейнера Яндекс Игр. */
   get isInYandex(): boolean {
     return this.isReady && !!this.sdk;
   }
 
+  /** true, если работает заглушка (локальная разработка). */
+  get isMock(): boolean {
+    return USE_MOCK;
+  }
+
   get lang(): string {
-    if (!this.sdk) return 'ru';
+    if (!this.sdk) return this.mockLang;
     const l = this.sdk.environment.i18n.lang || 'ru';
     return l.startsWith('tr') ? 'tr' : l.startsWith('en') ? 'en' : 'ru';
   }
@@ -116,6 +149,42 @@ class YandexSDKBridge {
    * (локальная разработка) работает в fallback-режиме с localStorage.
    */
   async init(): Promise<void> {
+    // ГЛУБОКАЯ ЗАГЛУШКА: вообще не трогаем реальный SDK, чтобы
+    // «No parent to post message» и прочие ошибки Яндекс-контейнера
+    // не сыпались в консоли при локальном запуске.
+    if (USE_MOCK) {
+      this.isReady = false; // sdk === null → все методы работают через localStorage
+      try {
+        const l = (navigator.language || 'ru').toLowerCase();
+        this.mockLang = l.startsWith('tr') ? 'tr' : l.startsWith('en') ? 'en' : 'ru';
+      } catch {
+        this.mockLang = 'ru';
+      }
+      console.log(
+        '%c[YandexSDK] using MOCK mode (FORCE_MOCK=true)',
+        'color:#ffb347;font-weight:bold'
+      );
+      try {
+        const raw = await this.readRawSave();
+        if (raw) {
+          this.save = {
+            bestTime: Number(raw.bestTime) || 0,
+            bestKills: Number(raw.bestKills) || 0,
+            totalRuns: Number(raw.totalRuns) || 0,
+            unlockedSkills: Array.isArray(raw.unlockedSkills)
+              ? (raw.unlockedSkills as string[])
+              : [],
+          };
+        }
+      } catch (e) {
+        console.warn('[YaSDK mock] load save failed', e);
+      }
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+      window.addEventListener('blur', this.onBlur);
+      window.addEventListener('focus', this.onFocus);
+      return;
+    }
+
     // Тай-брейкер: если SDK/сеть зависли — не держим экран загрузки дольше 6 сек.
     const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
       Promise.race([
