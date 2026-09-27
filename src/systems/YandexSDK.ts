@@ -29,21 +29,9 @@ interface YaGamesInstance {
     LoadingAPI?: { ready: () => void };
     GameplayAPI?: { start: () => void; stop: () => void };
   };
-  player?: {
-    getData: () => Promise<Record<string, unknown>>;
-    setData: (
-      data: Record<string, unknown>,
-      flush?: boolean
-    ) => Promise<void>;
-  };
-  leaderboards?: {
-    setLeaderboardScore: (
-      leaderboardId: string,
-      score: number
-    ) => Promise<void>;
-    getLeaderboards?: (lang?: string) => Promise<unknown>;
-  };
-  adv?: {
+  getPlayer: () => Promise<YaPlayer>;
+  getLeaderboards: () => Promise<YaLeaderboards>;
+  adv: {
     showRewardedVideo: (options: {
       callbacks?: {
         onOpen?: () => void;
@@ -61,6 +49,22 @@ interface YaGamesInstance {
       };
     }) => void;
   };
+}
+
+interface YaPlayer {
+  getData: () => Promise<Record<string, unknown>>;
+  setData: (
+    data: Record<string, unknown>,
+    flush?: boolean
+  ) => Promise<void>;
+}
+
+interface YaLeaderboards {
+  setLeaderboardScore: (
+    leaderboardId: string,
+    score: number
+  ) => Promise<unknown>;
+  getLeaderboards?: (lang?: string) => Promise<unknown>;
 }
 
 export type FocusListener = (hasFocus: boolean) => void;
@@ -85,6 +89,8 @@ const DEFAULT_SAVE: SaveData = {
 
 class YandexSDKBridge {
   private sdk: YaGamesInstance | null = null;
+  private playerPromise: Promise<YaPlayer | null> | null = null;
+  private leaderboardsPromise: Promise<YaLeaderboards | null> | null = null;
   private isReady = false;
   private rewardedBusy = false;
   private save: SaveData = { ...DEFAULT_SAVE };
@@ -110,16 +116,36 @@ class YandexSDKBridge {
    * (локальная разработка) работает в fallback-режиме с localStorage.
    */
   async init(): Promise<void> {
+    // Тай-брейкер: если SDK/сеть зависли — не держим экран загрузки дольше 6 сек.
+    const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
+      Promise.race([
+        p.catch(() => null),
+        new Promise<null>((res) => setTimeout(() => res(null), ms)),
+      ]);
+
     try {
       if (window.YaGames) {
-        this.sdk = await window.YaGames.init();
-        this.isReady = true;
-        console.log('[YaSDK] initialized, lang =', this.lang);
+        const sdk = await withTimeout(window.YaGames.init(), 6000);
+        if (sdk) {
+          this.sdk = sdk;
+          this.isReady = true;
+          console.log('[YaSDK] initialized, lang =', this.lang);
+        } else {
+          console.warn('[YaSDK] init timed out/unavailable, dev mode');
+        }
       } else {
         console.warn('[YaSDK] YaGames not found, running in dev mode');
       }
     } catch (e) {
       console.warn('[YaSDK] init failed, dev mode:', e);
+    }
+
+    // Ленивое получение игрока (согласно правилам платформы — только при необходимости)
+    if (this.sdk && !this.playerPromise) {
+      this.playerPromise = withTimeout(
+        this.sdk.getPlayer().catch(() => null),
+        5000
+      );
     }
 
     // Загрузка сохранений
@@ -154,10 +180,32 @@ class YandexSDKBridge {
 
   // ------------------------- СОХРАНЕНИЯ -------------------------
 
+  /** Лениво получаем объект игрока (кэшируем промис). */
+  private async getPlayer(): Promise<YaPlayer | null> {
+    if (!this.sdk) return null;
+    if (!this.playerPromise) {
+      this.playerPromise = this.sdk
+        .getPlayer()
+        .catch(() => null);
+    }
+    return this.playerPromise;
+  }
+
+  private async getLeaderboards(): Promise<YaLeaderboards | null> {
+    if (!this.sdk) return null;
+    if (!this.leaderboardsPromise) {
+      this.leaderboardsPromise = this.sdk
+        .getLeaderboards()
+        .catch(() => null);
+    }
+    return this.leaderboardsPromise;
+  }
+
   private async readRawSave(): Promise<Record<string, unknown> | null> {
-    if (this.sdk?.player) {
+    const player = await this.getPlayer();
+    if (player) {
       try {
-        const data = await this.sdk.player.getData();
+        const data = await player.getData();
         const blob = data[SAVE_KEY];
         if (blob && typeof blob === 'object') {
           return blob as Record<string, unknown>;
@@ -178,9 +226,10 @@ class YandexSDKBridge {
 
   async writeSave(patch: Partial<SaveData>): Promise<void> {
     this.save = { ...this.save, ...patch };
-    if (this.sdk?.player) {
+    const player = await this.getPlayer();
+    if (player) {
       try {
-        await this.sdk.player.setData({ [SAVE_KEY]: this.save }, true);
+        await player.setData({ [SAVE_KEY]: this.save }, true);
         return;
       } catch (e) {
         console.warn('[YaSDK] setData failed', e);
@@ -225,7 +274,7 @@ class YandexSDKBridge {
       return;
     }
     // Dev-режим без SDK: мгновенный успех для отладки
-    if (!this.sdk?.adv) {
+    if (!this.sdk || !this.sdk.adv) {
       onSuccess();
       return;
     }
@@ -260,7 +309,7 @@ class YandexSDKBridge {
 
   /** Опциональная полноэкранная реклама (например, между забегами). */
   showFullscreen(onClose?: () => void): void {
-    if (!this.sdk?.adv?.showFullscreenAdv) {
+    if (!this.sdk || !this.sdk.adv?.showFullscreenAdv) {
       onClose?.();
       return;
     }
@@ -283,11 +332,16 @@ class YandexSDKBridge {
   submitScore(scoreSeconds: number): void {
     const score = Math.floor(scoreSeconds);
     if (score <= 0) return;
-    if (this.sdk?.leaderboards) {
-      this.sdk.leaderboards
-        .setLeaderboardScore(LEADERBOARD_ID, score)
-        .catch((e: unknown) => console.warn('[YaSDK] lb setScore failed', e));
-    }
+    this.getLeaderboards()
+      .then((lb) => {
+        if (!lb) return;
+        return lb
+          .setLeaderboardScore(LEADERBOARD_ID, score)
+          .catch((e: unknown) =>
+            console.warn('[YaSDK] lb setScore failed', e)
+          );
+      })
+      .catch(() => undefined);
   }
 
   // ------------------------- ФОКУС ВКЛАДКИ -------------------------
